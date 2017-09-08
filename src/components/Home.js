@@ -17,7 +17,7 @@ class Raf {
 	constructor() {
 		this.time = new Date().getTime();
 		this.frame = 0;
-		this.fps = 1000 / 10;
+		this.fps = 1000 / 50;
 		this.isAnimating = false;
 	}
 
@@ -53,8 +53,8 @@ class Home extends React.Component {
 		this.defaultDy = cell;
 
 
-		this.x = 5 * cell;
-		this.y = 5 * cell;
+		this.x = parseInt(5 * cell + Math.random() * 1000);
+		this.y = parseInt(5 * cell + Math.random() * 500);
 		this.dx = cell;
 		this.dy = 0;
 		this.height = 600;
@@ -64,11 +64,13 @@ class Home extends React.Component {
 			y: this.y,
 		}];
 		this.state = {
-			direction: directions.LEFT,
+			direction: Math.random() > 0.5 ? directions.RIGHT : directions.LEFT,
 		};
 		this.endGame = false;
 		this.state = {
 			userId: 0,
+			users: [
+			],
 		}
 	}
 
@@ -88,17 +90,31 @@ class Home extends React.Component {
 			document.addEventListener('keydown', ::this.changeDirection);
 		});
 
-		this.props.socket.on('update', (users) => {
-			//const otherUsers = users.filter(user => user.id !== this.state.userId);
+		this.props.socket.on('update', (user) => {
+      if (!this.state.users) {
+				this.setState([user]);
+				return;
+			}
+			const localUsers = this.state.users;
+			let userIndex = localUsers.findIndex(el => el.id === user.id);
+			if (userIndex !== -1) {
+				if (Array.isArray(localUsers[userIndex].points)) {
+					localUsers[userIndex].points.push(user.points);
+				} else {
+					localUsers[userIndex].points = [user.points];
+				}
+			} else {
+				localUsers.push(user);
+			}
 			this.setState({
-				users,
+        users: localUsers,
 			})
 		});
 	}
 
 	sendPoint() {
 		this.props.socket.emit('user update', {
-			points: this.points,
+			points: this.points[this.points.length-1],
 			id: this.state.userId,
 		});
 	}
@@ -127,9 +143,11 @@ class Home extends React.Component {
 
 
 	drawUserLine(ctx, user) {
-		user.points.forEach(({ x, y }) => {
-			this.drawCircle(ctx, x, y, user.color);
-		})
+    if (user.points && user.points.length) {
+      user.points.forEach(({ x, y }) => {
+        this.drawCircle(ctx, x, y, user.color);
+      });
+		}
 	}
 
 	drawCanvas() {
@@ -158,8 +176,14 @@ class Home extends React.Component {
 			y: this.y,
 		});
 
-		if (this.points.length > 3) {
-			this.points.shift();
+		if (this.state.users && this.state.users.length > 1) {
+      const newUsers = this.state.users.map(user => {
+        if (user.points.length && user.points.length > 50) {
+        	user.points.shift();
+        }
+        return user;
+      });
+      this.setState({ users: newUsers });
 		}
 
 
@@ -173,20 +197,32 @@ class Home extends React.Component {
 			this.y <= 0 ||
 			this.y >= this.height
 		) {
-			console.info('Bumped to the edge')
+			// this.endGame = true;
 			return false;
 		}
-		const points = this.points.filter((point, i) => {
-			if (
-				(this.x === point.x)
-				&& (this.y === point.y)
-			) {
-				result = true;
-				this.points[i].color = '#000';
-				return point;
+		const points = [];
+		const currentUser = this.state.users.find(user => user.id === this.state.userId);
+    if (!currentUser) {
+    	return;
+		}
+    this.state.users.forEach(user => {
+			if (user.id === currentUser.id) {
+				return;
+			} else {
+        if (user.points && user.points.length) {
+          user.points.forEach(point => {
+          	currentUser.points.forEach(cpoint => {
+              if (
+                (cpoint.x === point.x)
+                && (cpoint.y === point.y)
+              ) {
+                this.endGame = true;
+              }
+						});
+          })
+        }
 			}
 		});
-		console.info('crossed points', points);
 		return result;
 	}
 

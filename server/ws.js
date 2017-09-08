@@ -91,16 +91,8 @@ export default (io, server) => {
 
 
 
-		socket.on('user update', ({id, points}) => {
-			console.log(id, points, currentRoom.tick);
-			const user = currentRoom && currentRoom.getUser(id);
-			if (!user) return;
-			user.setPoints(points);
-			currentRoom.addTick();
-			if(currentRoom.shouldUpdateClient()){
-				currentRoom.tick = 0;
-				io.emit('update', currentRoom.users)
-			}
+		socket.on('user update', (user) => {
+			io.emit('update', user);
 		});
 	});
 
